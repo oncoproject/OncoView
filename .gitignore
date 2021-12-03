@@ -1,6 +1,7 @@
 __history
 *.dcu
 *.zip
+*.~*
 
 CVS
 Entries
