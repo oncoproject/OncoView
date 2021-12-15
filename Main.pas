@@ -39,7 +39,7 @@ type
     PomiarSer1: TLineSeries;
     PomiarSer2: TLineSeries;
     KalibrSeries: TLineSeries;
-    KalibrDystPomSeries: TLineSeries;
+    KalibrRightSeries: TLineSeries;
     Panel1: TPanel;
     LedsPB: TPaintBox;
     Panel2: TPanel;
@@ -72,6 +72,15 @@ type
     Grid0BottomBox: TCheckBox;
     Grid0LeftBox: TCheckBox;
     Grid0RightBox: TCheckBox;
+    PasLaserSheet: TTabSheet;
+    PasLaserChart: TChart;
+    PasLaserTabSeries: TLineSeries;
+    Panel3: TPanel;
+    PasLaserShowPointsBox: TCheckBox;
+    GridPLBottomBox: TCheckBox;
+    GridPLLeftBox: TCheckBox;
+    GridPLRightBox: TCheckBox;
+    KalibrLaserBox: TCheckBox;
     procedure LVDblClick(Sender: TObject);
     procedure FormCreate(Sender: TObject);
     procedure InfoSheetShow(Sender: TObject);
@@ -106,8 +115,13 @@ type
     procedure Grid0BottomBoxClick(Sender: TObject);
     procedure Grid0LeftBoxClick(Sender: TObject);
     procedure Grid0RightBoxClick(Sender: TObject);
-    procedure LVCompare(Sender: TObject; Item1, Item2: TListItem; Data: Integer;
-      var Compare: Integer);
+    procedure LVCompare(Sender: TObject; Item1, Item2: TListItem; Data: Integer; var Compare: Integer);
+    procedure PasLaserSheetShow(Sender: TObject);
+    procedure PasLaserShowPointsBoxClick(Sender: TObject);
+    procedure GridPLBottomBoxClick(Sender: TObject);
+    procedure GridPLLeftBoxClick(Sender: TObject);
+    procedure GridPLRightBoxClick(Sender: TObject);
+    procedure KalibrLaserBoxClick(Sender: TObject);
 
   type
     TKalibrChartDt = record
@@ -136,6 +150,7 @@ type
     procedure saveToReg;
     procedure loadFromReg;
     procedure ZoomTime(m: double);
+    procedure LoadKalibrRightSeries;
 
   public
     { Public declarations }
@@ -202,6 +217,7 @@ begin
       registry.WriteBool('PaintOnMouseMove', PaintOnMouseMove.Checked);
       registry.WriteBool('PaintLedLineBox', PaintLedLineBox.Checked);
       registry.WriteBool('KalibrDystPomBox', KalibrDystPomBox.Checked);
+      registry.WriteBool('KalibrLaserBox', KalibrLaserBox.Checked);
       registry.WriteBool('GridLeftBox', GridLeftBox.Checked);
       registry.WriteBool('GridRightBox', GridRightBox.Checked);
       registry.WriteBool('GridBottomBox', GridBottomBox.Checked);
@@ -259,6 +275,7 @@ begin
       RegCheckBox('PaintOnMouseMove', PaintOnMouseMove);
       RegCheckBox('PaintLedLineBox', PaintLedLineBox);
       RegCheckBox('KalibrDystPomBox', KalibrDystPomBox);
+      RegCheckBox('KalibrLaserBox', KalibrLaserBox);
       RegCheckBox('Grid0LeftBox', Grid0LeftBox);
       RegCheckBox('Grid0RightBox', Grid0RightBox);
       RegCheckBox('Grid0BottomBox', Grid0BottomBox);
@@ -321,26 +338,24 @@ begin
   MeasKalibrGrid.Cols[0].CommaText := 'lp. Min Max Amplituda';
   PomMeasGrid.Rows[0].CommaText := 'lp. Czas Dystans "Dyst.pom" Ró¿nica';
   PomMeasGrid.Cols[0].CommaText := 'lp. kursor odniesienie ró¿nica';
+  PasLaserSheet.PageControl := nil;
 end;
 
-procedure TForm1.LVCompare(Sender: TObject; Item1, Item2: TListItem;
-  Data: Integer; var Compare: Integer);
+procedure TForm1.LVCompare(Sender: TObject; Item1, Item2: TListItem; Data: Integer; var Compare: Integer);
 var
-  d1,d2 : TOncoObject;
-  s1,s2 : string;
+  d1, d2: TOncoObject;
+  s1, s2: string;
 begin
   d1 := TOncoObject(Item1.Data);
   d2 := TOncoObject(Item2.Data);
   s1 := d1.Info.measTime;
   s2 := d2.Info.measTime;
-  if s1>s2 then
-     Compare := -1
-  else if s1<s2 then
-     Compare := 1
+  if s1 > s2 then
+    Compare := -1
+  else if s1 < s2 then
+    Compare := 1
   else
     Compare := 0;
-
-
 
 end;
 
@@ -366,6 +381,10 @@ begin
     LI.SubItems.Add(OncoObject.Info.measTime);
     LI.Data := OncoObject;
     LI.Selected := true;
+    if OncoObject.TeachData.isRdy then
+      PasLaserSheet.PageControl := MainPageControl
+    else
+      PasLaserSheet.PageControl := nil;
   end
   else
     OncoObject.Free;
@@ -462,7 +481,7 @@ var
   chNr: Integer;
   chn: TOncoInfo.TCalibrChan;
 const
-  TabUnits: array [0 .. TOncoInfo.CHANNEL_CNT - 1] of String = ('mm', 'Pa', '%','mm');
+  TabUnits: array [0 .. TOncoInfo.CHANNEL_CNT - 1] of String = ('mm', 'Pa', '%', 'mm');
 begin
   if Assigned(mViewData) then
   begin
@@ -719,6 +738,21 @@ begin
   PomiarChart.LeftAxis.Grid.Visible := (Sender as TCheckBox).Checked;
 end;
 
+procedure TForm1.GridPLBottomBoxClick(Sender: TObject);
+begin
+  PasLaserChart.BottomAxis.Grid.Visible := (Sender as TCheckBox).Checked;
+end;
+
+procedure TForm1.GridPLLeftBoxClick(Sender: TObject);
+begin
+  PasLaserChart.LeftAxis.Grid.Visible := (Sender as TCheckBox).Checked;
+end;
+
+procedure TForm1.GridPLRightBoxClick(Sender: TObject);
+begin
+  PasLaserChart.RightAxis.Grid.Visible := (Sender as TCheckBox).Checked;
+end;
+
 procedure TForm1.GridRightBoxClick(Sender: TObject);
 begin
   PomiarChart.RightAxis.Grid.Visible := (Sender as TCheckBox).Checked;
@@ -823,12 +857,49 @@ end;
 
 procedure TForm1.KalibrDystPomBoxClick(Sender: TObject);
 begin
-  KalibrDystPomSeries.Visible := KalibrDystPomBox.Checked;
+  KalibrLaserBox.Checked := false;
+  KalibrRightSeries.Visible := KalibrDystPomBox.Checked;
+  LoadKalibrRightSeries;
+end;
+
+procedure TForm1.KalibrLaserBoxClick(Sender: TObject);
+begin
+  KalibrDystPomBox.Checked := false;
+  KalibrRightSeries.Visible := KalibrLaserBox.Checked;
+  LoadKalibrRightSeries;
 end;
 
 procedure TForm1.PaintLedLineBoxClick(Sender: TObject);
 begin
   PomiarChart.Invalidate;
+end;
+
+procedure TForm1.PasLaserSheetShow(Sender: TObject);
+var
+  i, n: Integer;
+  X, Y: double;
+begin
+  PasLaserTabSeries.Clear;
+
+  if Assigned(mViewData) then
+  begin
+    n := mViewData.TeachData.getCnt;
+
+    for i := 0 to n - 1 do
+    begin
+      if mViewData.TeachData.tab[i].cnt > 0 then
+      begin
+        Y := mViewData.TeachData.tab[i].val;
+        X := (100.0 * i) / n;
+        PasLaserTabSeries.AddXY(X, Y);
+      end;
+    end;
+  end;
+end;
+
+procedure TForm1.PasLaserShowPointsBoxClick(Sender: TObject);
+begin
+  PasLaserTabSeries.Pointer.Visible := (Sender as TCheckBox).Checked;
 end;
 
 procedure TForm1.PomiarChartAfterDraw(Sender: TObject);
@@ -940,11 +1011,9 @@ procedure TForm1.KalibrSheetShow(Sender: TObject);
 var
   i, n: Integer;
   X, Y: double;
-  yPom: double;
   chCnt: Integer;
 begin
   KalibrSeries.Clear;
-  KalibrDystPomSeries.Clear;
 
   if Assigned(mViewData) then
   begin
@@ -952,18 +1021,51 @@ begin
     n := length(mViewData.konfigData);
     n := n div chCnt;
 
-    KalibrDystPomBox.Enabled := (chCnt>=2);
-    KalibrDystPomSeries.Visible := KalibrDystPomBox.Checked;
-
     for i := 0 to n - 1 do
     begin
       X := i / MEAS_PER_SEK;
       Y := mViewData.konfigData[chCnt * i + 0];
       KalibrSeries.AddXY(X, Y);
-      if chCnt>=2 then
+    end;
+
+    KalibrLaserBox.Enabled := mViewData.Info.isKalibrLaserData;
+    KalibrDystPomBox.Enabled := mViewData.Info.isKalibrTestData;
+  end
+  else
+  begin
+    KalibrLaserBox.Enabled := false;
+    KalibrDystPomBox.Enabled := false;
+  end;
+  LoadKalibrRightSeries;
+end;
+
+procedure TForm1.LoadKalibrRightSeries;
+var
+  i, n: Integer;
+  X, Y: double;
+  yPom: double;
+  chCnt: Integer;
+  dtOfs: Integer;
+begin
+  KalibrRightSeries.Clear;
+  KalibrRightSeries.Visible := KalibrDystPomBox.Checked or KalibrLaserBox.Checked;
+
+  if Assigned(mViewData) then
+  begin
+    chCnt := mViewData.Info.getKalibrDataCnt;
+    n := length(mViewData.konfigData) div chCnt;
+    if chCnt >= 2 then
+    begin
+      if KalibrLaserBox.Checked then
+        dtOfs := 1
+      else
+        dtOfs := 2;
+
+      for i := 0 to n - 1 do
       begin
-        yPom := mViewData.konfigData[chCnt * i + 1];
-        KalibrDystPomSeries.AddXY(X, yPom);
+        X := i / MEAS_PER_SEK;
+        yPom := mViewData.konfigData[chCnt * i + dtOfs];
+        KalibrRightSeries.AddXY(X, yPom);
       end;
     end;
   end;
@@ -997,7 +1099,7 @@ begin
       X := i / MEAS_PER_SEK_DIV;
       y1 := mViewData.MeasData[chCnt * i + 0];
       PomiarSer1.AddXY(X, y1);
-      if chCnt>=2 then
+      if chCnt >= 2 then
       begin
         y2 := mViewData.MeasData[chCnt * i + 1];
         PomiarSer2.AddXY(X, y2);

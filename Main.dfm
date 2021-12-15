@@ -1,7 +1,7 @@
 object Form1: TForm1
   Left = 0
   Top = 0
-  Caption = 'OncoProject viewer, ver 2.0.1'
+  Caption = 'OncoProject viewer, ver 2.0.3'
   ClientHeight = 722
   ClientWidth = 1269
   Color = clBtnFace
@@ -111,16 +111,12 @@ object Form1: TForm1
     Top = 24
     Width = 953
     Height = 698
-    ActivePage = CfgStmSheet
+    ActivePage = KalibrSheet
     Align = alClient
     TabOrder = 2
     object InfoSheet: TTabSheet
       Caption = 'Informacje'
       OnShow = InfoSheetShow
-      ExplicitLeft = 0
-      ExplicitTop = 0
-      ExplicitWidth = 0
-      ExplicitHeight = 0
       DesignSize = (
         945
         670)
@@ -272,10 +268,6 @@ object Form1: TForm1
       Caption = 'Kalibracja'
       ImageIndex = 1
       OnShow = KalibrSheetShow
-      ExplicitLeft = 0
-      ExplicitTop = 0
-      ExplicitWidth = 0
-      ExplicitHeight = 0
       object KalibrChart: TChart
         Left = 0
         Top = 0
@@ -297,8 +289,6 @@ object Form1: TForm1
         Color = clWindow
         TabOrder = 0
         OnMouseDown = KalibrChartMouseDown
-        ExplicitLeft = -1
-        ExplicitTop = 6
         DefaultCanvas = 'TGDIPlusCanvas'
         PrintMargins = (
           15
@@ -320,7 +310,7 @@ object Form1: TForm1
           YValues.Name = 'Y'
           YValues.Order = loNone
         end
-        object KalibrDystPomSeries: TLineSeries
+        object KalibrRightSeries: TLineSeries
           SeriesColor = clRed
           Title = 'KalibrDystPom'
           VertAxis = aRightAxis
@@ -353,7 +343,7 @@ object Form1: TForm1
         end
         object KalibrDystPomBox: TCheckBox
           Left = 8
-          Top = 33
+          Top = 56
           Width = 129
           Height = 17
           Caption = 'Dystans pomocniczy'
@@ -395,16 +385,23 @@ object Form1: TForm1
           TabOrder = 4
           OnClick = Grid0RightBoxClick
         end
+        object KalibrLaserBox: TCheckBox
+          Left = 8
+          Top = 33
+          Width = 129
+          Height = 17
+          Caption = 'Laser'
+          Checked = True
+          State = cbChecked
+          TabOrder = 5
+          OnClick = KalibrLaserBoxClick
+        end
       end
     end
     object MeasSheet: TTabSheet
       Caption = 'Pomiar'
       ImageIndex = 2
       OnShow = MeasSheetShow
-      ExplicitLeft = 0
-      ExplicitTop = 0
-      ExplicitWidth = 0
-      ExplicitHeight = 0
       object LedsPB: TPaintBox
         Left = 869
         Top = 0
@@ -611,10 +608,108 @@ object Form1: TForm1
           266)
       end
     end
+    object PasLaserSheet: TTabSheet
+      Caption = 'Pas-Laser'
+      ImageIndex = 4
+      OnShow = PasLaserSheetShow
+      object PasLaserChart: TChart
+        Left = 0
+        Top = 0
+        Width = 945
+        Height = 568
+        Legend.Visible = False
+        Title.Text.Strings = (
+          'TChart')
+        Title.Visible = False
+        BottomAxis.Grid.Style = psDash
+        BottomAxis.LabelsSeparation = 30
+        LeftAxis.Grid.Color = 452984832
+        LeftAxis.Grid.Style = psDash
+        LeftAxis.Grid.Width = 0
+        View3D = False
+        Align = alClient
+        BevelOuter = bvNone
+        Color = clWindow
+        TabOrder = 0
+        DefaultCanvas = 'TGDIPlusCanvas'
+        PrintMargins = (
+          15
+          5
+          15
+          5)
+        ColorPaletteIndex = 13
+        object PasLaserTabSeries: TLineSeries
+          SeriesColor = clBlue
+          Title = 'TeachTab'
+          Brush.BackColor = clDefault
+          DrawStyle = dsCurve
+          Pointer.HorizSize = 3
+          Pointer.InflateMargins = True
+          Pointer.Style = psRectangle
+          Pointer.VertSize = 3
+          XValues.Name = 'X'
+          XValues.Order = loAscending
+          YValues.Name = 'Y'
+          YValues.Order = loNone
+        end
+      end
+      object Panel3: TPanel
+        Left = 0
+        Top = 568
+        Width = 945
+        Height = 102
+        Align = alBottom
+        BevelKind = bkFlat
+        BevelOuter = bvNone
+        TabOrder = 1
+        object PasLaserShowPointsBox: TCheckBox
+          Left = 8
+          Top = 10
+          Width = 97
+          Height = 17
+          Caption = 'Poka'#380' punkty'
+          TabOrder = 0
+          OnClick = PasLaserShowPointsBoxClick
+        end
+        object GridPLBottomBox: TCheckBox
+          Left = 151
+          Top = 10
+          Width = 98
+          Height = 17
+          Caption = 'Siatka pionowa'
+          Checked = True
+          State = cbChecked
+          TabOrder = 1
+          OnClick = GridPLBottomBoxClick
+        end
+        object GridPLLeftBox: TCheckBox
+          Left = 151
+          Top = 33
+          Width = 82
+          Height = 17
+          Caption = 'Siatka lewa'
+          Checked = True
+          State = cbChecked
+          TabOrder = 2
+          OnClick = GridPLLeftBoxClick
+        end
+        object GridPLRightBox: TCheckBox
+          Left = 151
+          Top = 56
+          Width = 82
+          Height = 17
+          Caption = 'Siatka prawa'
+          Checked = True
+          State = cbChecked
+          TabOrder = 3
+          OnClick = GridPLRightBoxClick
+        end
+      end
+    end
   end
   object HelpPanel: TPanel
-    Left = 200
-    Top = 116
+    Left = 1237
+    Top = 686
     Width = 873
     Height = 516
     Anchors = [akLeft, akTop, akRight, akBottom]
@@ -654,7 +749,9 @@ object Form1: TForm1
           'zostanie ustawiony kursor odniesienia'
         '3. Mo'#380'na odrysowywa'#263' stany LED'#243'w od ruchu kursora myszki'
         '4. Mo'#380'liwy jest eksport danych z fazy pomiar do Excela'
-        '')
+        
+          '5. Zak'#322'adka Pas-Laser pojawia si'#281' tylko gdy dane by'#322'y zebrane w ' +
+          'trybie PAS+LASER')
       ParentFont = False
       TabOrder = 0
     end
@@ -679,7 +776,7 @@ object Form1: TForm1
     Left = 48
     Top = 656
     Bitmap = {
-      494C010106002C00A40010001000FFFFFFFFFF10FFFFFFFFFFFFFFFF424D3600
+      494C010106002C00B00010001000FFFFFFFFFF10FFFFFFFFFFFFFFFF424D3600
       0000000000003600000028000000400000002000000001002000000000000020
       00000000000000000000000000000000000000000000000000000000000000FF
       00000000000000000000000000000000000000000000000000000000000000FF

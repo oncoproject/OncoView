@@ -162,13 +162,32 @@ type
     function getLokalizacjaStr: string;
     function getTrybPomiaruStr: string;
     function getWdechStr: string;
+    function isKalibrPasData: boolean;
+    function isKalibrLaserData: boolean;
+    function isKalibrTestData: boolean;
 
   end;
 
   TOncoObject = class(TObject)
+  type
+    TTeachItem = record
+      val: single;
+      cnt: integer;
+    end;
+
+    TTeachData = record
+      tab: array of TTeachItem;
+      procedure clear;
+      procedure loadFromStream(Stream: TStream);
+      function isRdy: boolean;
+      function getCnt: integer;
+    end;
+
+  public
     Info: TOncoInfo;
     KonfigData: array of single;
     MeasData: array of single;
+    TeachData: TTeachData;
     constructor Create;
     destructor Destroy; override;
     function LoadFromFile(Fname: string): boolean;
@@ -196,7 +215,7 @@ var
 begin
   SL := TInpStrList.Create;
   try
-    SL.LoadFromStream(Stream);
+    SL.loadFromStream(Stream);
     SL.SecName := 'MAIN';
     measTime := SL.readAsStr('TIME');
     patientID := SL.readAsStr('PATIENT_ID');
@@ -236,6 +255,21 @@ end;
 function TOncoInfo.getKalibrDataCnt: integer;
 begin
   Result := getDataCnt(ChnKalibrExis);
+end;
+
+function TOncoInfo.isKalibrPasData: boolean;
+begin
+  Result := (pos('D',ChnKalibrExis) > 0);
+end;
+
+function TOncoInfo.isKalibrLaserData: boolean;
+begin
+  Result := (pos('L',ChnKalibrExis) > 0);
+end;
+
+function TOncoInfo.isKalibrTestData: boolean;
+begin
+  Result := (pos('T',ChnKalibrExis) > 0);
 end;
 
 function TOncoInfo.getMeasureDataCnt: integer;
@@ -457,6 +491,31 @@ begin
   SpecSett.loadFromSL(SL);
 end;
 
+procedure TOncoObject.TTeachData.clear;
+begin
+  setlength(tab, 0);
+end;
+
+procedure TOncoObject.TTeachData.loadFromStream(Stream: TStream);
+var
+  n: integer;
+begin
+  Stream.seek(0, soFromBeginning);
+  n := Stream.Size div 8;
+  setlength(tab, n);
+  Stream.Read(tab[0], 8 * n);
+end;
+
+function TOncoObject.TTeachData.getCnt: integer;
+begin
+  Result := Length(tab);
+end;
+
+function TOncoObject.TTeachData.isRdy: boolean;
+begin
+  Result := Length(tab) > 0;
+end;
+
 constructor TOncoObject.Create;
 begin
   Info := TOncoInfo.Create;
@@ -485,6 +544,7 @@ function TOncoObject.LoadFrom(Stream: TStream): boolean;
 const
   KONFIG_DATA = 'konfig.data';
   MEAS_DATA = 'measure.data';
+  TEACH_TAB = 'teachLaserTab.data';
   TXT_INFO = 'info.txt';
 
 var
@@ -498,7 +558,7 @@ begin
   CopyStream := TMemoryStream.Create;
   try
     Stream.seek(0, soFromBeginning);
-    CopyStream.LoadFromStream(Stream);
+    CopyStream.loadFromStream(Stream);
     zip.Open(CopyStream, zmRead);
 
     if (zip.IndexOf(KONFIG_DATA) >= 0) and (zip.IndexOf(MEAS_DATA) >= 0) and (zip.IndexOf(TXT_INFO) >= 0) then
@@ -530,6 +590,15 @@ begin
       finally
         dataStream.Free;
       end;
+
+      TeachData.clear;
+      try
+        zip.Read(TEACH_TAB, dataStream, Header);
+        TeachData.loadFromStream(dataStream);
+      finally
+        dataStream.Free;
+      end;
+
       Result := True;
     end
     else
