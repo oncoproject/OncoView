@@ -4,14 +4,19 @@ interface
 
 uses
   Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, Vcl.Graphics,
-  System.zip;
+  System.zip,
+  RegKwadr;
+
+const
+  KALIBR_PER_SEK_DIV = 50.0; // 50 pomiarów na sekundê dla fazy kalibracji
+  MEAS_PER_SEK_DIV = 10.0; // 10 pomiarów na sekundê dla fazy pomiaru
 
 type
 
   TOncoInfo = class(TObject)
   const
     LEVEL_CNT = 8;
-    POINT_CNT = 3;
+    POINT_CNT = 30;
     CALIBR_PT_CNT = 2;
     CHANNEL_CNT = 4;
     TAB_STEP_LEN = 7;
@@ -42,12 +47,19 @@ type
     end;
 
     TMeasRecPoint = record
-      minVal: single;
-      idxMin: integer;
-      maxVal: single;
-      idxMax: integer;
-      Amplituda: single;
+      tmStart: integer;
+      tmLen: integer;
+      typ: integer;
+      status: integer;
+      pasVal: single;
+      pasSrKw: single;
+      laserVal: single;
+      laserSrKw: single;
+      AmplOk: boolean;
       procedure loadFromSL(SL: TInpStrList);
+      function getTyp: string;
+      function getStatus: string;
+      function getAmpl: string;
     end;
 
     TMeasKalibrRec = record
@@ -55,6 +67,10 @@ type
       avrAmpl: single;
       valSuggested: single;
       valApproved: single;
+      wspolA: single;
+      wspolB: single;
+      wspolStatus: integer;
+
       tabPoint: array [0 .. POINT_CNT - 1] of TMeasRecPoint;
       procedure loadFromSL(SL: TInpStrList);
     end;
@@ -157,8 +173,8 @@ type
     constructor Create;
     destructor Destroy; override;
     procedure LoadFrom(Stream: TStream);
-    function getMeasureDataCnt: integer;
-    function getKalibrDataCnt: integer;
+    function getMeasureChannelCnt: integer;
+    function getKalibrChannelCnt: integer;
     function getLokalizacjaStr: string;
     function getTrybPomiaruStr: string;
     function getWdechStr: string;
@@ -175,20 +191,97 @@ type
       cnt: integer;
     end;
 
-    TTeachData = record
-      tab: array of TTeachItem;
-      procedure clear;
-      procedure loadFromStream(Stream: TStream);
-      function isRdy: boolean;
+    TKonfigData = class;
+
+    TFloatData = class(TObject)
+    protected
+      mChCnt: integer;
+      mPerSekDiv: single;
+    public
+      tab: array of single;
+      constructor Create(aPerSekDiv: single);
+      function getDistVal(idx: integer): single;
+      function getLaserVal(idx: integer): single;
+      function getPomDistVal(idx: integer): single;
+
       function getCnt: integer;
+      function getPrCnt: integer;
+      function getDataPerSek: single;
+      procedure loadFromStream(Stream: TStream; aChCnt: integer);
+      procedure SaveTxtTab(Fname: string);
+    end;
+
+    TStabReg = record
+      begIdx: integer;
+      len: integer;
+      pasAvr: single;
+      pasSrKw: single;
+      laserAvr: single;
+      laserSrKw: single;
+      pasObl: single;
+      errorLaserVal: boolean; // pomiar laserem poza zakresem;
+      wdech: boolean; // odcinek jest wdechem (powy¿ej œredniego wskazana)
+      errorBeforeWdech: boolean; // punkt wyrzucony poniewa¿ by³ przed pierwszym wdechem
+      errorLaserSrKwTooBig: boolean; // odchy³ka laser œrednikwadratowa zbyt du¿a
+      errorLineAB_ToBig: boolean; // zbyt du¿a odchy³ka od prostej
+      function Err: single;
+      function ErrAbs: single;
+      function getPointColor: TColor;
+      function isOkPoint: boolean;
+
+    end;
+
+    TStabRegTab = record
+      tab: array of TStabReg;
+      mAvrMiddle: double; // wartoœæ œrednia rozgraniczaj¹ca wdech od wydechu
+      procedure copyfrom(src: TStabRegTab);
+      procedure clear;
+      function getCnt: integer;
+      function getMaxErrorIdx: integer;
+      procedure clearErrorFlags;
+      function getNoErrorCnt: integer;
+      procedure remoovePointBeforeWdech;
+
+    end;
+
+    TOcenaTranslRec = record
+      isOblRdy: boolean;
+      errAvr: double;
+      errAvrAbs: double;
+      stabRegTab: TStabRegTab;
+    end;
+
+    TKonfigData = class(TFloatData)
+    private
+      mWspA: single;
+      mWspB: single;
+      mOblRdy: boolean;
+    public
+      stabRegTab: TStabRegTab;
+      procedure loadFromStream(Stream: TStream; aChCnt: integer);
+      function LiczAB(maxPointError: double): boolean;
+
+      function getWspA: single;
+      function getWspB: single;
+      procedure SetSymulParams(wspA, wspB: single);
+      procedure liczAutoB;
+      function isOblRdy: boolean;
+      function getPasObl(laser: double): double;
+      procedure getOcena(var ocenaTranslRec: TOcenaTranslRec);
+      procedure FindStabReg(minTime, maxAmpl, maxLaserSrKw, maxLaser, minLaser: double);
+    end;
+
+    TMeasData = class(TFloatData)
+    public
+
     end;
 
   public
     Info: TOncoInfo;
-    KonfigData: array of single;
-    MeasData: array of single;
-    TeachData: TTeachData;
-    constructor Create;
+    KonfigData: TKonfigData;
+    MeasData: TMeasData;
+    OnAfterDataLoaded: TNotifyEvent;
+    constructor Create(aOnAfterDataLoaded: TNotifyEvent);
     destructor Destroy; override;
     function LoadFromFile(Fname: string): boolean;
     function LoadFrom(Stream: TStream): boolean;
@@ -248,31 +341,33 @@ begin
       begin
         Result := s.Length;
       end;
+  else
+    Result := 0;
   end;
 
 end;
 
-function TOncoInfo.getKalibrDataCnt: integer;
+function TOncoInfo.getKalibrChannelCnt: integer;
 begin
   Result := getDataCnt(ChnKalibrExis);
 end;
 
 function TOncoInfo.isKalibrPasData: boolean;
 begin
-  Result := (pos('D',ChnKalibrExis) > 0);
+  Result := (pos('D', ChnKalibrExis) > 0);
 end;
 
 function TOncoInfo.isKalibrLaserData: boolean;
 begin
-  Result := (pos('L',ChnKalibrExis) > 0);
+  Result := (pos('L', ChnKalibrExis) > 0);
 end;
 
 function TOncoInfo.isKalibrTestData: boolean;
 begin
-  Result := (pos('T',ChnKalibrExis) > 0);
+  Result := (pos('T', ChnKalibrExis) > 0);
 end;
 
-function TOncoInfo.getMeasureDataCnt: integer;
+function TOncoInfo.getMeasureChannelCnt: integer;
 begin
   Result := getDataCnt(ChnMeasExis);
 end;
@@ -373,11 +468,57 @@ end;
 
 procedure TOncoInfo.TMeasRecPoint.loadFromSL(SL: TInpStrList);
 begin
-  minVal := SL.readAsFloat('Min');
-  idxMin := SL.readAsInt('idxMin');
-  maxVal := SL.readAsFloat('Max');
-  idxMax := SL.readAsInt('idxMax');
-  Amplituda := SL.readAsFloat('Ampl');
+  tmStart := SL.readAsInt('start', -1);
+  if tmStart >= 0 then
+  begin
+    tmLen := SL.readAsInt('len');
+    typ := SL.readAsInt('stabRegType');
+    status := SL.readAsInt('status');
+    pasVal := SL.readAsFloat('val');
+    pasSrKw := SL.readAsFloat('odchSrKw');
+    laserVal := SL.readAsFloat('avrValL');
+    laserSrKw := SL.readAsFloat('odchSrKwL');
+    AmplOk := SL.readAsBool('amplOk');
+  end;
+end;
+
+function TOncoInfo.TMeasRecPoint.getTyp: string;
+begin
+  case typ of
+    0:
+      Result := '?';
+    1:
+      Result := 'W';
+    2:
+      Result := 'Y'
+  else
+    Result := '???'
+  end;
+end;
+
+function TOncoInfo.TMeasRecPoint.getStatus: string;
+begin
+  case status of
+    0:
+      Result := 'ptOk';
+    1:
+      Result := 'ptNoWdechYet';
+    2:
+      Result := 'ptMaxSrKw';
+    3:
+      Result := 'ptDiffError';
+  else
+    Result := '???';
+  end;
+end;
+
+function TOncoInfo.TMeasRecPoint.getAmpl: string;
+begin
+  if AmplOk then
+    Result := 'Ok'
+  else
+    Result := 'TooSmall';
+
 end;
 
 procedure TOncoInfo.TMeasKalibrRec.loadFromSL(SL: TInpStrList);
@@ -389,9 +530,13 @@ begin
   avrAmpl := SL.readAsFloat('avrAmpl');
   valSuggested := SL.readAsFloat('valSuggested');
   valApproved := SL.readAsFloat('valApproved');
+  wspolA := SL.readAsFloat('wspA');
+  wspolB := SL.readAsFloat('wspB');
+  wspolStatus := SL.readAsInt('wspStatus');
+
   for i := 0 to POINT_CNT - 1 do
   begin
-    SL.SecName := 'KALIBR_REC_pt' + inttostr(i);
+    SL.SecName := 'KALIBR_REC_pt_' + inttostr(i);
     tabPoint[i].loadFromSL(SL);
   end;
 end;
@@ -491,40 +636,510 @@ begin
   SpecSett.loadFromSL(SL);
 end;
 
-procedure TOncoObject.TTeachData.clear;
+
+
+// ------ TOncoObject.TFloatData --------------------------------------------
+
+constructor TOncoObject.TFloatData.Create(aPerSekDiv: single);
 begin
-  setlength(tab, 0);
+  inherited Create;
+  mPerSekDiv := aPerSekDiv;
 end;
 
-procedure TOncoObject.TTeachData.loadFromStream(Stream: TStream);
-var
-  n: integer;
+function TOncoObject.TFloatData.getDistVal(idx: integer): single;
 begin
-  Stream.seek(0, soFromBeginning);
-  n := Stream.Size div 8;
-  setlength(tab, n);
-  Stream.Read(tab[0], 8 * n);
+  Result := tab[mChCnt * idx + 0];
 end;
 
-function TOncoObject.TTeachData.getCnt: integer;
+function TOncoObject.TFloatData.getLaserVal(idx: integer): single;
+begin
+  Result := tab[mChCnt * idx + 1];
+end;
+
+function TOncoObject.TFloatData.getPomDistVal(idx: integer): single;
+begin
+  if mChCnt = 3 then
+    Result := tab[mChCnt * idx + 2]
+  else
+    Result := tab[mChCnt * idx + 1]
+end;
+
+function TOncoObject.TFloatData.getDataPerSek: single;
+begin
+  Result := mPerSekDiv;
+end;
+
+function TOncoObject.TFloatData.getCnt: integer;
 begin
   Result := Length(tab);
 end;
 
-function TOncoObject.TTeachData.isRdy: boolean;
+function TOncoObject.TFloatData.getPrCnt: integer;
 begin
-  Result := Length(tab) > 0;
+  Result := getCnt div mChCnt;
 end;
 
-constructor TOncoObject.Create;
+procedure TOncoObject.TFloatData.loadFromStream(Stream: TStream; aChCnt: integer);
+var
+  n: integer;
 begin
-  Info := TOncoInfo.Create;
+  mChCnt := aChCnt;
+  Stream.seek(0, soFromBeginning);
+  n := Stream.Size div 4;
+  setlength(tab, n);
+  Stream.Read(tab[0], 4 * n);
+end;
 
+procedure TOncoObject.TFloatData.SaveTxtTab(Fname: string);
+var
+  SL: TStringList;
+  SL2: TStringList;
+  n, i, j: integer;
+  s: string;
+begin
+  SL := TStringList.Create;
+  SL2 := TStringList.Create;
+  try
+    n := Length(tab);
+    n := n div mChCnt;
+    for i := 0 to n - 1 do
+    begin
+      SL2.clear;
+      SL2.Add(inttostr(i));
+      SL2.Add(FormatFloat('0.000', i / mPerSekDiv));
+      for j := 0 to mChCnt - 1 do
+      begin
+        SL2.Add(FormatFloat('0.000', tab[mChCnt * i + j]));
+      end;
+      s := SL2.CommaText;
+      SL.Add(s);
+    end;
+    SL.SaveToFile(Fname);
+  finally
+    SL.Free;
+    SL2.Free;
+  end;
+end;
+
+// ------ TOncoObject.TStabRegTab ----------------------------------------------------------
+
+function TOncoObject.TStabReg.Err: single;
+begin
+  Result := pasAvr - pasObl;
+end;
+
+function TOncoObject.TStabReg.ErrAbs: single;
+begin
+  Result := abs(pasAvr - pasObl);
+end;
+
+function TOncoObject.TStabReg.getPointColor: TColor;
+begin
+  Result := clBLACK;
+  if errorLineAB_ToBig then
+    Result := clFuchsia;
+  if errorBeforeWdech then
+    Result := clBlue;
+  if errorLaserSrKwTooBig then
+    Result := clRed;
+  if errorLaserVal then
+    Result := clGreen;
+
+end;
+
+function TOncoObject.TStabReg.isOkPoint: boolean;
+begin
+  Result := not(errorLineAB_ToBig or errorBeforeWdech or errorLaserSrKwTooBig or errorLaserVal);
+end;
+
+procedure TOncoObject.TStabRegTab.copyfrom(src: TStabRegTab);
+var
+  n, i: integer;
+begin
+  n := Length(src.tab);
+  setlength(tab, n);
+  for i := 0 to n - 1 do
+    tab[i] := src.tab[i];
+end;
+
+procedure TOncoObject.TStabRegTab.clear;
+begin
+  setlength(tab, 0);
+end;
+
+function TOncoObject.TStabRegTab.getCnt: integer;
+begin
+  Result := Length(tab);
+end;
+
+function TOncoObject.TStabRegTab.getMaxErrorIdx: integer;
+var
+  i, n: integer;
+  mx: double;
+begin
+  Result := -1;
+  n := getCnt;
+  if n > 0 then
+  begin
+    mx := -1;
+    Result := 0;
+    for i := 0 to n - 1 do
+    begin
+      if tab[i].isOkPoint then
+      begin
+        if (tab[i].ErrAbs > mx) or (mx < 0) then
+        begin
+          Result := i;
+          mx := tab[i].ErrAbs;
+        end;
+      end;
+    end;
+  end;
+end;
+
+procedure TOncoObject.TStabRegTab.clearErrorFlags;
+var
+  i, n: integer;
+begin
+  n := getCnt;
+  for i := 0 to n - 1 do
+  begin
+    tab[i].errorLineAB_ToBig := false;
+  end;
+end;
+
+function TOncoObject.TStabRegTab.getNoErrorCnt: integer;
+var
+  i, n: integer;
+begin
+  n := getCnt;
+  Result := 0;
+  for i := 0 to n - 1 do
+  begin
+    if tab[i].isOkPoint then
+      inc(Result);
+  end;
+end;
+
+// wyrzucenie punktów, sprzed wydechu
+procedure TOncoObject.TStabRegTab.remoovePointBeforeWdech;
+var
+  i, n: integer;
+  wasWdech: boolean;
+begin
+  wasWdech := false;
+  n := Length(tab);
+  for i := 0 to n - 1 do
+  begin
+    tab[i].wdech := tab[i].pasAvr > mAvrMiddle;
+    wasWdech := wasWdech or tab[i].wdech;
+    if not(tab[i].wdech) then
+    begin
+      if not(wasWdech) then
+        tab[i].errorBeforeWdech := true;
+
+    end;
+
+  end;
+
+end;
+
+
+
+
+// ------ TOncoObject.TKonfigData ----------------------------------------------------------
+
+procedure TOncoObject.TKonfigData.loadFromStream(Stream: TStream; aChCnt: integer);
+begin
+  inherited loadFromStream(Stream, aChCnt);
+  mOblRdy := false;
+  stabRegTab.clear;
+end;
+
+function TOncoObject.TKonfigData.getWspA: single;
+begin
+  Result := mWspA;
+end;
+
+function TOncoObject.TKonfigData.getWspB: single;
+begin
+  Result := mWspB;
+end;
+
+procedure TOncoObject.TKonfigData.SetSymulParams(wspA, wspB: single);
+var
+  i: integer;
+begin
+  mWspA := wspA;
+  mWspB := wspB;
+  mOblRdy := true;
+  for i := 0 to stabRegTab.getCnt - 1 do
+  begin
+    stabRegTab.tab[i].pasObl := getPasObl(stabRegTab.tab[i].laserAvr);
+  end;
+end;
+
+function TOncoObject.TKonfigData.isOblRdy: boolean;
+begin
+  Result := mOblRdy;
+end;
+
+function TOncoObject.TKonfigData.getPasObl(laser: double): double;
+begin
+  Result := laser * mWspA + mWspB;
+end;
+
+function TOncoObject.TKonfigData.LiczAB(maxPointError: double): boolean;
+
+  function LiczWsp(var wsp: TRegresjaKwadr.TWspol): boolean;
+  var
+    RegKw: TRegresjaKwadr;
+    i, k, n: integer;
+  begin
+    n := stabRegTab.getCnt;
+    RegKw := TRegresjaKwadr.Create(n);
+    try
+      k := 0;
+      for i := 0 to n - 1 do
+      begin
+        if stabRegTab.tab[i].isOkPoint then
+        begin
+          RegKw.tab[k].x := stabRegTab.tab[i].laserAvr;
+          RegKw.tab[k].y := stabRegTab.tab[i].pasAvr;
+          inc(k);
+        end;
+      end;
+      RegKw.ShrinkTab(k);
+
+      Result := RegKw.getWspol(wsp);
+    finally
+      RegKw.Free;
+    end;
+  end;
+
+var
+  i, n: integer;
+  wsp: TRegresjaKwadr.TWspol;
+  doAgain: boolean;
+  Err: boolean;
+begin
+  stabRegTab.clearErrorFlags;
+  Result := LiczWsp(wsp);
+  if Result then
+  begin
+    SetSymulParams(wsp.a, wsp.b);
+    // wyrzucenie punktów, dla ktorych b³ad jest zbyt du¿y
+    doAgain := false;
+    n := stabRegTab.getCnt;
+
+    for i := 0 to n - 1 do
+    begin
+      Err := stabRegTab.tab[i].ErrAbs > maxPointError;
+      stabRegTab.tab[i].errorLineAB_ToBig := Err;
+      if Err then
+        doAgain := true;
+    end;
+    if doAgain then
+    begin
+      if LiczWsp(wsp) then
+        SetSymulParams(wsp.a, wsp.b);
+    end;
+  end;
+
+end;
+
+procedure TOncoObject.TKonfigData.getOcena(var ocenaTranslRec: TOcenaTranslRec);
+var
+  i, n: integer;
+  sumAvr: double;
+  sumAbsAvr: double;
+  dist, distobl: double;
+begin
+  ocenaTranslRec.isOblRdy := isOblRdy;
+  if isOblRdy then
+  begin
+    n := getPrCnt;
+    sumAvr := 0;
+    sumAbsAvr := 0;
+    for i := 0 to n - 1 do
+    begin
+      dist := getDistVal(i);
+      distobl := getPasObl(getLaserVal(i));
+      sumAvr := sumAvr + (dist - distobl);
+      sumAbsAvr := sumAbsAvr + abs(dist - distobl);
+    end;
+    ocenaTranslRec.errAvr := sumAvr / n;
+    ocenaTranslRec.errAvrAbs := sumAbsAvr / n;
+  end;
+  ocenaTranslRec.stabRegTab := stabRegTab;
+end;
+
+procedure TOncoObject.TKonfigData.liczAutoB;
+var
+  i, n: integer;
+  sum: double;
+  dist, distobl: double;
+begin
+  n := getPrCnt;
+  mWspB := 0;
+  sum := 0;
+  for i := 0 to n - 1 do
+  begin
+    dist := getDistVal(i);
+    distobl := getPasObl(getLaserVal(i));
+    sum := sum + (dist - distobl);
+  end;
+  mWspB := sum / n;
+
+end;
+
+procedure TOncoObject.TKonfigData.FindStabReg(minTime, maxAmpl, maxLaserSrKw, maxLaser, minLaser: double);
+  procedure liczRegParam(var reg: TStabReg);
+  var
+    avr: double;
+    srKw: double;
+    avrL: double;
+    srKwL: double;
+    v: single;
+    i: integer;
+  begin
+    avr := 0;
+    avrL := 0;
+    reg.errorLaserVal := false;
+    for i := 0 to reg.len - 1 do
+    begin
+      avr := avr + getDistVal(reg.begIdx + i);
+      v := getLaserVal(reg.begIdx + i);
+      avrL := avrL + v;
+      if (v < minLaser) or (v > maxLaser) then
+        reg.errorLaserVal := true;
+    end;
+    reg.pasAvr := avr / reg.len;
+    reg.laserAvr := avrL / reg.len;
+    reg.pasObl := 0;
+
+    srKw := 0;
+    srKwL := 0;
+    for i := 0 to reg.len - 1 do
+    begin
+      v := getDistVal(reg.begIdx + i) - reg.pasAvr;
+      srKw := srKw + v * v;
+
+      v := getLaserVal(reg.begIdx + i) - reg.laserAvr;
+      srKwL := srKwL + v * v;
+    end;
+    reg.pasSrKw := sqrt(srKw / reg.len);
+    reg.laserSrKw := sqrt(srKwL / reg.len);
+    reg.errorLaserSrKwTooBig := reg.laserSrKw > maxLaserSrKw;
+    reg.errorLineAB_ToBig := false;
+    reg.errorBeforeWdech := false;
+  end;
+
+// wyszukanie podobnego regionu metod¹ "rozgl¹dania si¹ od œrodka"
+  function getAlternateReg(inpR: TStabReg): TStabReg;
+  var
+    v: single;
+    m: integer;
+    idx: integer;
+
+  begin
+    v := inpR.pasAvr;
+    idx := inpR.begIdx + inpR.len div 2;
+
+    // spogl¹danie do ty³u
+    m := -1;
+    while idx + m > 0 do
+    begin
+      if abs(getDistVal(idx + m) - v) > maxAmpl then
+        break;
+      dec(m);
+    end;
+    Result.begIdx := idx + m + 1;
+    // spogl¹danie do przodu
+    m := 1;
+    while idx + m > 0 do
+    begin
+      if abs(getDistVal(idx + m) - v) > maxAmpl then
+        break;
+      inc(m);
+    end;
+    Result.len := (idx + m - 1) - Result.begIdx;
+    liczRegParam(Result);
+  end;
+
+var
+  idx: integer;
+  m, n: integer;
+  reg: TStabReg;
+  minLen: integer;
+  v: single;
+  rIdx: integer;
+  mMax, mMin: double;
+begin
+  n := getPrCnt;
+  minLen := round(minTime * getDataPerSek);
+  setlength(stabRegTab.tab, 0);
+
+  idx := 0;
+  mMin := getDistVal(idx);
+  mMax := mMin;
+
+  while idx < n - minLen do
+  begin
+    v := getDistVal(idx);
+    if mMax < v then
+      mMax := v;
+    if mMin > v then
+      mMin := v;
+
+    m := 1;
+    while idx + m < n do
+    begin
+      if abs(getDistVal(idx + m) - v) > maxAmpl then
+        break;
+      inc(m);
+    end;
+    if m >= minLen then
+    begin
+      rIdx := Length(stabRegTab.tab);
+      setlength(stabRegTab.tab, rIdx + 1);
+      stabRegTab.tab[rIdx].begIdx := idx;
+      stabRegTab.tab[rIdx].len := m - 1;
+      liczRegParam(stabRegTab.tab[rIdx]);
+      reg := getAlternateReg(stabRegTab.tab[rIdx]);
+      if reg.len > stabRegTab.tab[rIdx].len then
+        stabRegTab.tab[rIdx] := reg;
+
+      idx := idx + stabRegTab.tab[rIdx].len;
+      stabRegTab.tab[rIdx].len := minLen;
+    end
+    else
+      inc(idx);
+  end;
+
+  // wyrzucenie punktów, sprzed wydechu
+  stabRegTab.mAvrMiddle := (mMin + mMax) / 2;
+  stabRegTab.remoovePointBeforeWdech;
+end;
+
+
+
+// ------ TOncoObject ----------------------------------------------------------
+
+constructor TOncoObject.Create(aOnAfterDataLoaded: TNotifyEvent);
+begin
+  inherited Create;
+  Info := TOncoInfo.Create;
+  KonfigData := TKonfigData.Create(KALIBR_PER_SEK_DIV);
+  MeasData := TMeasData.Create(MEAS_PER_SEK_DIV);
+  OnAfterDataLoaded := aOnAfterDataLoaded;
 end;
 
 destructor TOncoObject.Destroy;
 begin
   Info.Free;
+  KonfigData.Free;
+  MeasData.Free;
 end;
 
 function TOncoObject.LoadFromFile(Fname: string): boolean;
@@ -544,7 +1159,6 @@ function TOncoObject.LoadFrom(Stream: TStream): boolean;
 const
   KONFIG_DATA = 'konfig.data';
   MEAS_DATA = 'measure.data';
-  TEACH_TAB = 'teachLaserTab.data';
   TXT_INFO = 'info.txt';
 
 var
@@ -552,7 +1166,6 @@ var
   zip: TZipFile;
   dataStream: TStream;
   Header: TZipHeader;
-  n: integer;
 begin
   zip := TZipFile.Create;
   CopyStream := TMemoryStream.Create;
@@ -561,28 +1174,8 @@ begin
     CopyStream.loadFromStream(Stream);
     zip.Open(CopyStream, zmRead);
 
-    if (zip.IndexOf(KONFIG_DATA) >= 0) and (zip.IndexOf(MEAS_DATA) >= 0) and (zip.IndexOf(TXT_INFO) >= 0) then
+    if (zip.IndexOf(KONFIG_DATA) >= 0) and (zip.IndexOf(TXT_INFO) >= 0) then
     begin
-
-      try
-        zip.Read(KONFIG_DATA, dataStream, Header);
-        dataStream.seek(0, soFromBeginning);
-        n := dataStream.Size div 4;
-        setlength(KonfigData, n);
-        dataStream.Read(KonfigData[0], 4 * n);
-      finally
-        dataStream.Free;
-      end;
-
-      try
-        zip.Read(MEAS_DATA, dataStream, Header);
-        dataStream.seek(0, soFromBeginning);
-        n := dataStream.Size div 4;
-        setlength(MeasData, n);
-        dataStream.Read(MeasData[0], 4 * n);
-      finally
-        dataStream.Free;
-      end;
 
       try
         zip.Read(TXT_INFO, dataStream, Header);
@@ -591,15 +1184,27 @@ begin
         dataStream.Free;
       end;
 
-      TeachData.clear;
       try
-        zip.Read(TEACH_TAB, dataStream, Header);
-        TeachData.loadFromStream(dataStream);
+        zip.Read(KONFIG_DATA, dataStream, Header);
+        KonfigData.loadFromStream(dataStream, Info.getKalibrChannelCnt);
       finally
         dataStream.Free;
       end;
 
-      Result := True;
+      if (zip.IndexOf(MEAS_DATA) >= 0) then
+      begin
+        try
+          zip.Read(MEAS_DATA, dataStream, Header);
+          MeasData.loadFromStream(dataStream, Info.getMeasureChannelCnt);
+        finally
+          dataStream.Free;
+        end;
+      end;
+
+      if Assigned(OnAfterDataLoaded) then
+        OnAfterDataLoaded(self);
+
+      Result := true;
     end
     else
       Result := false;

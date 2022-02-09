@@ -1,2 +1,7 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
-<BorlandProject/>
+<BorlandProject>
+	<Transactions>
+    <Transaction>1899.12.30 00:00:00.000.602,=D:\!!Work\OncoProject\Delphi\OncoView\Unit1.pas</Transaction>
+    <Transaction>1899.12.30 00:00:00.000.532,D:\!!Work\OncoProject\Delphi\OncoView\Unit1.pas=D:\!!Work\OncoProject\Delphi\OncoView\RegKwadr.pas</Transaction>
+  </Transactions>
+</BorlandProject>

@@ -3,7 +3,8 @@ program OncoView;
 uses
   Vcl.Forms,
   Main in 'Main.pas' {Form1},
-  InfoDataUnit in 'InfoDataUnit.pas';
+  InfoDataUnit in 'InfoDataUnit.pas',
+  RegKwadr in 'RegKwadr.pas';
 
 {$R *.res}
 
