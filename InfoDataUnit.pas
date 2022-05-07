@@ -4,7 +4,7 @@ interface
 
 uses
   Winapi.Windows, Winapi.Messages, System.SysUtils, System.Variants, System.Classes, Vcl.Graphics,
-  System.zip,
+  System.zip, registry, Vcl.StdCtrls, Vcl.ExtCtrls,
   RegKwadr;
 
 const
@@ -23,6 +23,7 @@ type
     DATA_VER_0 = 0;
     DATA_VER_1 = 1;
     DATA_VER_2 = 2;
+    DATA_VER_3 = 3;
 
   type
     TInpStrList = class(TStringList)
@@ -63,6 +64,9 @@ type
     end;
 
     TMeasKalibrRec = record
+      maxAmpl: single;
+      maxWdech: single;
+      minWydech: single;
       avrMax: single;
       avrAmpl: single;
       valSuggested: single;
@@ -151,6 +155,21 @@ type
       procedure loadFromSL(SL: TInpStrList);
     end;
 
+    TChnInfo = record
+      PasExist: boolean;
+      LaserExist: boolean;
+      LaserPomocExist: boolean;
+      KeysExist: boolean;
+      chnCnt: integer;
+
+      PasOffset: integer;
+      LaserOffset: integer;
+      DistPomOffset: integer;
+      KeysOffset: integer;
+
+      procedure init(s: string);
+    end;
+
   private
     function getDataCnt(s: string): integer;
   public
@@ -173,15 +192,12 @@ type
     constructor Create;
     destructor Destroy; override;
     procedure LoadFrom(Stream: TStream);
-    function getMeasureChannelCnt: integer;
-    function getKalibrChannelCnt: integer;
     function getLokalizacjaStr: string;
     function getTrybPomiaruStr: string;
     function getWdechStr: string;
-    function isKalibrPasData: boolean;
-    function isKalibrLaserData: boolean;
-    function isKalibrTestData: boolean;
 
+    function getKalibrChnInfo: TChnInfo;
+    function getMeasChnInfo: TChnInfo;
   end;
 
   TOncoObject = class(TObject)
@@ -195,7 +211,7 @@ type
 
     TFloatData = class(TObject)
     protected
-      mChCnt: integer;
+      mChInfo: TOncoInfo.TChnInfo;
       mPerSekDiv: single;
     public
       tab: array of single;
@@ -203,12 +219,20 @@ type
       function getDistVal(idx: integer): single;
       function getLaserVal(idx: integer): single;
       function getPomDistVal(idx: integer): single;
+      function getKey1Val(idx: integer): single;
+      function getKey2Val(idx: integer): single;
 
       function getCnt: integer;
       function getPrCnt: integer;
       function getDataPerSek: single;
-      procedure loadFromStream(Stream: TStream; aChCnt: integer);
+      procedure loadFromStream(Stream: TStream; aChInfo: TOncoInfo.TChnInfo);
       procedure SaveTxtTab(Fname: string);
+      function getChannelCnt: integer;
+      function isPasData: boolean;
+      function isLaserData: boolean;
+      function isLaserPomocData: boolean;
+      function isKeysData: boolean;
+
     end;
 
     TStabReg = record
@@ -258,7 +282,7 @@ type
       mOblRdy: boolean;
     public
       stabRegTab: TStabRegTab;
-      procedure loadFromStream(Stream: TStream; aChCnt: integer);
+      procedure loadFromStream(Stream: TStream; aChInfo: TOncoInfo.TChnInfo);
       function LiczAB(maxPointError: double): boolean;
 
       function getWspA: single;
@@ -285,6 +309,14 @@ type
     destructor Destroy; override;
     function LoadFromFile(Fname: string): boolean;
     function LoadFrom(Stream: TStream): boolean;
+  end;
+
+  TGkRegistry = class(TRegistry)
+  public
+    function RegInt(KeyName: string; default: integer): integer;
+    function RegBool(KeyName: string; default: boolean): boolean;
+    procedure RegCheckBox(KeyName: string; box: TCheckBox);
+    procedure RegLabEdit(KeyName: string; edit: TLabeledEdit);
   end;
 
 implementation
@@ -337,7 +369,7 @@ begin
       Result := 1;
     DATA_VER_1:
       Result := 2;
-    DATA_VER_2:
+    DATA_VER_2, DATA_VER_3:
       begin
         Result := s.Length;
       end;
@@ -347,29 +379,53 @@ begin
 
 end;
 
-function TOncoInfo.getKalibrChannelCnt: integer;
+procedure TOncoInfo.TChnInfo.init(s: string);
+  function decKontr(x: integer): integer;
+  begin
+    dec(x);
+    if x >= chnCnt then
+      x := 0;
+    Result := x;
+  end;
+
+var
+  p, l, t, k: integer;
 begin
-  Result := getDataCnt(ChnKalibrExis);
+  p := pos('D', s);
+  l := pos('L', s);
+  t := pos('T', s);
+  k := pos('K', s);
+
+  PasExist := (p > 0);
+  LaserExist := (l > 0);
+  LaserPomocExist := (t > 0);
+  KeysExist := (k > 0);
+
+  chnCnt := 0;
+  if PasExist then
+    inc(chnCnt);
+  if LaserExist then
+    inc(chnCnt);
+  if LaserPomocExist then
+    inc(chnCnt);
+  if KeysExist then
+    inc(chnCnt);
+
+  PasOffset := decKontr(p);
+  LaserOffset := decKontr(l);
+  DistPomOffset := decKontr(t);
+  KeysOffset := decKontr(k);
+
 end;
 
-function TOncoInfo.isKalibrPasData: boolean;
+function TOncoInfo.getKalibrChnInfo: TChnInfo;
 begin
-  Result := (pos('D', ChnKalibrExis) > 0);
+  Result.init(ChnKalibrExis);
 end;
 
-function TOncoInfo.isKalibrLaserData: boolean;
+function TOncoInfo.getMeasChnInfo: TChnInfo;
 begin
-  Result := (pos('L', ChnKalibrExis) > 0);
-end;
-
-function TOncoInfo.isKalibrTestData: boolean;
-begin
-  Result := (pos('T', ChnKalibrExis) > 0);
-end;
-
-function TOncoInfo.getMeasureChannelCnt: integer;
-begin
-  Result := getDataCnt(ChnMeasExis);
+  Result.init(ChnMeasExis);
 end;
 
 function TOncoInfo.getLokalizacjaStr: string;
@@ -526,6 +582,10 @@ var
   i: integer;
 begin
   SL.SecName := 'KALIBR_REC';
+  maxAmpl := SL.readAsFloat('maxAmpl');
+  maxWdech := SL.readAsFloat('maxWdech');
+  minWydech := SL.readAsFloat('minWydech');
+
   avrMax := SL.readAsFloat('avrMax');
   avrAmpl := SL.readAsFloat('avrAmpl');
   valSuggested := SL.readAsFloat('valSuggested');
@@ -648,20 +708,40 @@ end;
 
 function TOncoObject.TFloatData.getDistVal(idx: integer): single;
 begin
-  Result := tab[mChCnt * idx + 0];
+
+  Result := tab[mChInfo.chnCnt * idx + mChInfo.PasOffset];
 end;
 
 function TOncoObject.TFloatData.getLaserVal(idx: integer): single;
 begin
-  Result := tab[mChCnt * idx + 1];
+  Result := tab[mChInfo.chnCnt * idx + mChInfo.LaserOffset];
 end;
 
 function TOncoObject.TFloatData.getPomDistVal(idx: integer): single;
 begin
-  if mChCnt = 3 then
-    Result := tab[mChCnt * idx + 2]
+  Result := tab[mChInfo.chnCnt * idx + mChInfo.DistPomOffset]
+end;
+
+function TOncoObject.TFloatData.getKey1Val(idx: integer): single;
+var
+  v: single;
+begin
+  v := tab[mChInfo.chnCnt * idx + mChInfo.KeysOffset];
+  if (v = 2) or (v = 3) then
+    Result := 0.4
   else
-    Result := tab[mChCnt * idx + 1]
+    Result := 0;
+end;
+
+function TOncoObject.TFloatData.getKey2Val(idx: integer): single;
+var
+  v: single;
+begin
+  v := tab[mChInfo.chnCnt * idx + mChInfo.KeysOffset];
+  if (v = 1) or (v = 3) then
+    Result := 1
+  else
+    Result := 0.6;
 end;
 
 function TOncoObject.TFloatData.getDataPerSek: single;
@@ -676,18 +756,43 @@ end;
 
 function TOncoObject.TFloatData.getPrCnt: integer;
 begin
-  Result := getCnt div mChCnt;
+  Result := getCnt div mChInfo.chnCnt;
 end;
 
-procedure TOncoObject.TFloatData.loadFromStream(Stream: TStream; aChCnt: integer);
+procedure TOncoObject.TFloatData.loadFromStream(Stream: TStream; aChInfo: TOncoInfo.TChnInfo);
 var
   n: integer;
 begin
-  mChCnt := aChCnt;
+  mChInfo := aChInfo;
   Stream.seek(0, soFromBeginning);
   n := Stream.Size div 4;
   setlength(tab, n);
   Stream.Read(tab[0], 4 * n);
+end;
+
+function TOncoObject.TFloatData.getChannelCnt: integer;
+begin
+  Result := mChInfo.chnCnt;
+end;
+
+function TOncoObject.TFloatData.isPasData: boolean;
+begin
+  Result := mChInfo.PasExist;
+end;
+
+function TOncoObject.TFloatData.isLaserData: boolean;
+begin
+  Result := mChInfo.LaserExist;
+end;
+
+function TOncoObject.TFloatData.isLaserPomocData: boolean;
+begin
+  Result := mChInfo.LaserPomocExist;
+end;
+
+function TOncoObject.TFloatData.isKeysData: boolean;
+begin
+  Result := mChInfo.KeysExist;
 end;
 
 procedure TOncoObject.TFloatData.SaveTxtTab(Fname: string);
@@ -700,16 +805,15 @@ begin
   SL := TStringList.Create;
   SL2 := TStringList.Create;
   try
-    n := Length(tab);
-    n := n div mChCnt;
+    n := getPrCnt;
     for i := 0 to n - 1 do
     begin
       SL2.clear;
       SL2.Add(inttostr(i));
       SL2.Add(FormatFloat('0.000', i / mPerSekDiv));
-      for j := 0 to mChCnt - 1 do
+      for j := 0 to mChInfo.chnCnt - 1 do
       begin
-        SL2.Add(FormatFloat('0.000', tab[mChCnt * i + j]));
+        SL2.Add(FormatFloat('0.000', tab[mChInfo.chnCnt * i + j]));
       end;
       s := SL2.CommaText;
       SL.Add(s);
@@ -849,9 +953,9 @@ end;
 
 // ------ TOncoObject.TKonfigData ----------------------------------------------------------
 
-procedure TOncoObject.TKonfigData.loadFromStream(Stream: TStream; aChCnt: integer);
+procedure TOncoObject.TKonfigData.loadFromStream(Stream: TStream; aChInfo: TOncoInfo.TChnInfo);
 begin
-  inherited loadFromStream(Stream, aChCnt);
+  inherited loadFromStream(Stream, aChInfo);
   mOblRdy := false;
   stabRegTab.clear;
 end;
@@ -1186,7 +1290,7 @@ begin
 
       try
         zip.Read(KONFIG_DATA, dataStream, Header);
-        KonfigData.loadFromStream(dataStream, Info.getKalibrChannelCnt);
+        KonfigData.loadFromStream(dataStream, Info.getKalibrChnInfo);
       finally
         dataStream.Free;
       end;
@@ -1195,7 +1299,7 @@ begin
       begin
         try
           zip.Read(MEAS_DATA, dataStream, Header);
-          MeasData.loadFromStream(dataStream, Info.getMeasureChannelCnt);
+          MeasData.loadFromStream(dataStream, Info.getMeasChnInfo);
         finally
           dataStream.Free;
         end;
@@ -1212,6 +1316,34 @@ begin
 
   end;
 
+end;
+
+function TGkRegistry.RegInt(KeyName: string; default: integer): integer;
+begin
+  if ValueExists(KeyName) then
+    Result := ReadInteger(KeyName)
+  else
+    Result := Default;
+end;
+
+function TGkRegistry.RegBool(KeyName: string; default: boolean): boolean;
+begin
+  if ValueExists(KeyName) then
+    Result := ReadBool(KeyName)
+  else
+    Result := Default;
+end;
+
+procedure TGkRegistry.RegCheckBox(KeyName: string; box: TCheckBox);
+begin
+  if ValueExists(KeyName) then
+    box.Checked := ReadBool(KeyName);
+end;
+
+procedure TGkRegistry.RegLabEdit(KeyName: string; edit: TLabeledEdit);
+begin
+  if ValueExists(KeyName) then
+    edit.Text := ReadString(KeyName);
 end;
 
 initialization
