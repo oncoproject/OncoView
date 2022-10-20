@@ -441,6 +441,8 @@ begin
   OsLeftSwitchFrame.OnOsChanged := OnLeftOsChangedProc;
 
   PasSeries.Clear;
+  LaserSeries.Clear;
+  LaserPomocSeries.Clear;
   PasOblSeries.Clear;
   PasErrSeries.Clear;
 

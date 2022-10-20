@@ -13,7 +13,6 @@ type
   TPomiarNewSheetFrame = class(TBaseChartFrame)
     PomMeasGrid: TStringGrid;
     LedsPB: TPaintBox;
-    PaintLedLineBox: TCheckBox;
     PaintOnMouseMove: TCheckBox;
     Panel2: TPanel;
     procedure LedsPBPaint(Sender: TObject);
@@ -296,13 +295,11 @@ end;
 procedure TPomiarNewSheetFrame.saveToReg(reg: TGkRegistry);
 begin
   reg.WriteBool('PaintOnMouseMove', PaintOnMouseMove.Checked);
-  reg.WriteBool('PaintLedLineBox', PaintLedLineBox.Checked);
 end;
 
 procedure TPomiarNewSheetFrame.loadFromReg(reg: TGkRegistry);
 begin
   reg.RegCheckBox('PaintOnMouseMove', PaintOnMouseMove);
-  reg.RegCheckBox('PaintLedLineBox', PaintLedLineBox);
 end;
 
 end.

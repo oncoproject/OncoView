@@ -46,13 +46,5 @@ inherited PomiarNewSheetFrame: TPomiarNewSheetFrame
       Caption = 'Paint On MouseMove'
       TabOrder = 1
     end
-    object PaintLedLineBox: TCheckBox
-      Left = 8
-      Top = 33
-      Width = 129
-      Height = 17
-      Caption = 'Rysuj linie LED'
-      TabOrder = 2
-    end
   end
 end

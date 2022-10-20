@@ -487,7 +487,6 @@ inherited KalibrSheetFrame: TKalibrSheetFrame
       Align = alBottom
       TabOrder = 0
       Anchors = [akLeft, akTop, akRight, akBottom]
-      ExplicitLeft = 0
       DesignSize = (
         590
         307)

@@ -389,7 +389,7 @@ begin
 end;
 
 const
-  PageSaveCvs: set of byte = [1, 2, 4];
+  PageSaveCvs: set of byte = [1, 2, 3];
 
 procedure TMainForm.actSaveCsvUpdate(Sender: TObject);
 begin
@@ -410,7 +410,7 @@ begin
     case MainPageControl.ActivePageIndex of
       1:
         nm := 'KonfiData_';
-      2:
+      2,3:
         nm := 'MeasData_';
       4:
         nm := 'TransTable_';
@@ -424,6 +424,8 @@ begin
           SaveKonfigDataToCvs(dlg.FileName);
         2:
           SaveMeasDataToCvs(dlg.FileName);
+        3:
+          SaveMeasDataToCvs(dlg.FileName);
 
       end;
     end;
@@ -434,12 +436,13 @@ end;
 
 procedure TMainForm.SaveMeasDataToCvs(Fname: string);
 begin
-  mViewData.MeasData.SaveTxtTab(Fname);
+  mViewData.MeasData.SaveTxtTab(mViewData.Info, Fname);
 end;
 
 procedure TMainForm.SaveKonfigDataToCvs(Fname: string);
 begin
-  mViewData.KonfigData.SaveTxtTab(Fname);
+
+  mViewData.KonfigData.SaveTxtTab(mViewData.Info, Fname);
 end;
 
 procedure TMainForm.actShowHelpExecute(Sender: TObject);

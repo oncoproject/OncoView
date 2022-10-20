@@ -1,7 +1,7 @@
 object MainForm: TMainForm
   Left = 0
   Top = 0
-  Caption = 'OncoProject viewer, ver 2.0.10'
+  Caption = 'OncoProject viewer, ver 2.0.15'
   ClientHeight = 988
   ClientWidth = 1373
   Color = clBtnFace
@@ -105,20 +105,18 @@ object MainForm: TMainForm
     ViewStyle = vsReport
     OnCompare = LVCompare
     OnDblClick = LVDblClick
-    ExplicitHeight = 714
   end
   object MainPageControl: TPageControl
     Left = 260
     Top = 24
     Width = 1113
     Height = 964
-    ActivePage = MeasSheet
+    ActivePage = KalibrSheet
     Align = alClient
     TabOrder = 2
     object InfoSheet: TTabSheet
       Caption = 'Informacje'
       OnShow = InfoSheetShow
-      ExplicitHeight = 686
       DesignSize = (
         1105
         936)
@@ -271,7 +269,6 @@ object MainForm: TMainForm
       Caption = 'Kalibracja'
       ImageIndex = 1
       OnShow = KalibrSheetShow
-      ExplicitHeight = 686
       inline KalibrSheetFrame: TKalibrSheetFrame
         Left = 0
         Top = 0
@@ -286,7 +283,7 @@ object MainForm: TMainForm
         ParentFont = False
         TabOrder = 0
         ExplicitWidth = 1105
-        ExplicitHeight = 686
+        ExplicitHeight = 936
         inherited Splitter2: TSplitter
           Top = 759
           Width = 1105
@@ -297,7 +294,7 @@ object MainForm: TMainForm
           Width = 982
           Height = 759
           ExplicitWidth = 982
-          ExplicitHeight = 509
+          ExplicitHeight = 759
           PrintMargins = (
             15
             5
@@ -307,7 +304,7 @@ object MainForm: TMainForm
         inherited Panel1: TPanel
           Top = 762
           Width = 1105
-          ExplicitTop = 512
+          ExplicitTop = 762
           ExplicitWidth = 1105
           inherited Memo2: TMemo
             Width = 785
@@ -316,7 +313,7 @@ object MainForm: TMainForm
         end
         inherited Panel4: TPanel
           Height = 759
-          ExplicitHeight = 509
+          ExplicitHeight = 759
           inherited OsRightSwitchFrame: TOsSwitchFrame
             inherited Panel1: TPanel
               inherited LaserPomocButton: TRadioButton
@@ -357,29 +354,29 @@ object MainForm: TMainForm
         Height = 936
         Align = alClient
         TabOrder = 0
-        ExplicitLeft = 260
-        ExplicitTop = 24
-        ExplicitWidth = 1113
-        ExplicitHeight = 964
+        ExplicitWidth = 1105
+        ExplicitHeight = 936
         inherited LedsPB: TPaintBox
           Left = 1029
           Height = 832
+          ExplicitLeft = 1029
+          ExplicitHeight = 832
         end
         inherited mChart: TChart
           Width = 1029
           Height = 832
-          ExplicitWidth = 1037
-          ExplicitHeight = 860
+          ExplicitWidth = 1029
+          ExplicitHeight = 832
           inherited ZmRightAxisBox: TCheckBox
             Left = 958
-            ExplicitLeft = 966
+            ExplicitLeft = 958
           end
         end
         inherited Panel2: TPanel
           Top = 832
           Width = 1105
-          ExplicitTop = 860
-          ExplicitWidth = 1113
+          ExplicitTop = 832
+          ExplicitWidth = 1105
         end
       end
     end
@@ -387,7 +384,6 @@ object MainForm: TMainForm
       Caption = 'PomiarNew'
       ImageIndex = 2
       OnShow = MeasSheetNewShow
-      ExplicitHeight = 686
       inline PomiarNewSheetFrame: TPomiarNewSheetFrame
         Left = 0
         Top = 0
@@ -395,7 +391,6 @@ object MainForm: TMainForm
         Height = 936
         Align = alClient
         TabOrder = 0
-        ExplicitLeft = 2
         ExplicitWidth = 1105
         ExplicitHeight = 936
         inherited LedsPB: TPaintBox
@@ -407,7 +402,7 @@ object MainForm: TMainForm
         inherited Panel2: TPanel
           Top = 832
           Width = 1105
-          ExplicitTop = 582
+          ExplicitTop = 832
           ExplicitWidth = 1105
         end
       end
@@ -416,7 +411,6 @@ object MainForm: TMainForm
       Caption = 'Konfiguracja ster.'
       ImageIndex = 3
       OnShow = CfgStmSheetShow
-      ExplicitHeight = 686
       DesignSize = (
         1105
         936)
@@ -473,8 +467,8 @@ object MainForm: TMainForm
     end
   end
   object HelpPanel: TPanel
-    Left = 336
-    Top = 142
+    Left = 512
+    Top = 278
     Width = 744
     Height = 675
     Anchors = [akLeft, akTop, akRight, akBottom]
@@ -549,7 +543,6 @@ object MainForm: TMainForm
         '    - zaznaczenie przedzia'#322'u lewym klawiszem myszki')
       ParentFont = False
       TabOrder = 0
-      ExplicitHeight = 377
     end
     object HideHelpBtn: TButton
       Left = 703
@@ -572,7 +565,7 @@ object MainForm: TMainForm
     Left = 48
     Top = 656
     Bitmap = {
-      494C010106002C000C0110001000FFFFFFFFFF10FFFFFFFFFFFFFFFF424D3600
+      494C010106002C001C0110001000FFFFFFFFFF10FFFFFFFFFFFFFFFF424D3600
       0000000000003600000028000000400000002000000001002000000000000020
       00000000000000000000000000000000000000000000000000000000000000FF
       00000000000000000000000000000000000000000000000000000000000000FF

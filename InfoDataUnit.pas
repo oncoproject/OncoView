@@ -219,6 +219,8 @@ type
       function getDistVal(idx: integer): single;
       function getLaserVal(idx: integer): single;
       function getPomDistVal(idx: integer): single;
+      function getKey1Bool(idx: integer): boolean;
+      function getKey2Bool(idx: integer): boolean;
       function getKey1Val(idx: integer): single;
       function getKey2Val(idx: integer): single;
 
@@ -226,7 +228,7 @@ type
       function getPrCnt: integer;
       function getDataPerSek: single;
       procedure loadFromStream(Stream: TStream; aChInfo: TOncoInfo.TChnInfo);
-      procedure SaveTxtTab(Fname: string);
+      procedure SaveTxtTab(const Info: TOncoInfo; Fname: string);
       function getChannelCnt: integer;
       function isPasData: boolean;
       function isLaserData: boolean;
@@ -722,23 +724,33 @@ begin
   Result := tab[mChInfo.chnCnt * idx + mChInfo.DistPomOffset]
 end;
 
-function TOncoObject.TFloatData.getKey1Val(idx: integer): single;
+function TOncoObject.TFloatData.getKey1Bool(idx: integer): boolean;
 var
   v: single;
 begin
   v := tab[mChInfo.chnCnt * idx + mChInfo.KeysOffset];
-  if (v = 2) or (v = 3) then
+  Result := (v = 2) or (v = 3);
+end;
+
+function TOncoObject.TFloatData.getKey2Bool(idx: integer): boolean;
+var
+  v: single;
+begin
+  v := tab[mChInfo.chnCnt * idx + mChInfo.KeysOffset];
+  Result := (v = 1) or (v = 3);
+end;
+
+function TOncoObject.TFloatData.getKey1Val(idx: integer): single;
+begin
+  if getKey1Bool(idx) then
     Result := 0.4
   else
     Result := 0;
 end;
 
 function TOncoObject.TFloatData.getKey2Val(idx: integer): single;
-var
-  v: single;
 begin
-  v := tab[mChInfo.chnCnt * idx + mChInfo.KeysOffset];
-  if (v = 1) or (v = 3) then
+  if getKey2Bool(idx) then
     Result := 1
   else
     Result := 0.6;
@@ -795,28 +807,59 @@ begin
   Result := mChInfo.KeysExist;
 end;
 
-procedure TOncoObject.TFloatData.SaveTxtTab(Fname: string);
+procedure TOncoObject.TFloatData.SaveTxtTab(const Info: TOncoInfo; Fname: string);
 var
   SL: TStringList;
   SL2: TStringList;
   n, i, j: integer;
   s: string;
+  chCnt: integer;
 begin
   SL := TStringList.Create;
   SL2 := TStringList.Create;
   try
+     SL2.Delimiter := ';';
+
+    SL2.add('ID');
+    SL2.add(Info.patientID);
+    SL.add(SL2.DelimitedText);
+
+    SL2.clear;
+    SL2.add('Time');
+    SL2.add(Info.measTime);
+    SL.add(SL2.DelimitedText);
+
+    SL2.clear;
+    SL2.add('valApproved');
+    SL2.add(FormatFloat('0.000',Info.MeasKalibrRec.valApproved));
+    SL.add(SL2.DelimitedText);
+
+
+    SL.add('');
+
     n := getPrCnt;
     for i := 0 to n - 1 do
     begin
       SL2.clear;
-      SL2.Add(inttostr(i));
-      SL2.Add(FormatFloat('0.000', i / mPerSekDiv));
-      for j := 0 to mChInfo.chnCnt - 1 do
+      SL2.add(inttostr(i));
+      SL2.add(FormatFloat('0.000', i / mPerSekDiv));
+
+      chCnt := mChInfo.chnCnt;
+      if mChInfo.KeysExist then
+        dec(chCnt);
+
+      for j := 0 to chCnt - 1 do
       begin
-        SL2.Add(FormatFloat('0.000', tab[mChInfo.chnCnt * i + j]));
+        SL2.add(FormatFloat('0.000', tab[mChInfo.chnCnt * i + j]));
       end;
-      s := SL2.CommaText;
-      SL.Add(s);
+      if mChInfo.KeysExist then
+      begin
+        SL2.add(inttostr(byte(getKey1Bool(i))));
+        SL2.add(inttostr(byte(getKey2Bool(i))));
+      end;
+
+      s := SL2.DelimitedText;
+      SL.add(s);
     end;
     SL.SaveToFile(Fname);
   finally
